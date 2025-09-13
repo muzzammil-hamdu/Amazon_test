@@ -18,11 +18,9 @@ stages:
         goals: 'clean package'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
-
-    # Publish build output as artifact
     - task: PublishBuildArtifacts@1
       inputs:
-        PathtoPublish: 'Amazon/target'
+        PathtoPublish: 'Amazon/target'     # Path should match Maven output
         ArtifactName: 'drop'
         publishLocation: 'Container'
 
@@ -36,9 +34,8 @@ stages:
     steps:
     - download: current
       artifact: drop
-
-    # Example: Copy WAR/JAR to deployment folder
     - powershell: |
         Write-Host "Deploying artifact..."
+        # Adjust path and extension to match published artifact
         Copy-Item "$(Pipeline.Workspace)/drop/*.jar" "C:\deploy\Amazon" -Force
       displayName: 'Copy artifact to deploy folder'
