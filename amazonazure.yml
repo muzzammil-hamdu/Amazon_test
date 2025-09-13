@@ -29,4 +29,25 @@ stages:
     # Publish artifacts
     - task: PublishBuildArtifacts@1
       inputs:
-        PathtoP
+        pathToPublish: '$(Build.SourcesDirectory)\Amazon\target'
+        artifactName: 'drop'
+        publishLocation: 'Container'
+
+# Stage 2: Deploy
+- stage: Deploy
+  displayName: 'Deploy Artifact'
+  dependsOn: Build
+  jobs:
+  - job: DeployJob
+    displayName: 'Deploy Artifact Job'
+    steps:
+    - download: current
+      artifact: drop
+
+    - powershell: |
+        Write-Host "Deploying artifact..."
+        New-Item -Path "C:\deploy\Amazon" -ItemType Directory -Force
+        Copy-Item "$(Pipeline.Workspace)\drop\*.jar" "C:\deploy\Amazon" -Force
+        Write-Host "Deployment complete. Files in C:\deploy\Amazon:"
+        Get-ChildItem "C:\deploy\Amazon"
+      displayName: 'Copy artifact to deploy folder'
