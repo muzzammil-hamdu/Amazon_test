@@ -1,42 +1,44 @@
 trigger:
-- master   # Trigger pipeline on commits to master
+- master
 
 pool:
-  name: batch11    # Your self-hosted Windows agent pool
+  name: 'batch11'   # your self-hosted Windows agent pool
 
 stages:
-# ------------------ Build Stage ------------------
+# Stage 1: Build and Publish Artifacts
 - stage: Build
-  displayName: "Build Stage"
+  displayName: 'Build Project'
   jobs:
-  - job: BuildJob
-    displayName: "Build Job"
+  - job: MavenBuild
+    displayName: 'Maven Package'
     steps:
-    - checkout: self   # Pulls your GitHub repo
+    - task: Maven@4
+      inputs:
+        mavenPomFile: 'Amazon/pom.xml'
+        goals: 'clean package'
+        publishJUnitResults: true
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
 
-    # Create artifact folder and copy repo files
-    - powershell: |
-        Write-Host "Preparing build artifact..."
-        New-Item -ItemType Directory -Path "$(Build.ArtifactStagingDirectory)" -Force
-        Copy-Item -Path * -Destination "$(Build.ArtifactStagingDirectory)" -Recurse -Force
-      displayName: "Copy repo files to staging directory"
+    # Publish build output as artifact
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: 'Amazon/target'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
 
-    # Publish all repo files as an artifact
-    - publish: $(Build.ArtifactStagingDirectory)
-      artifact: AmazonTestRepo
-      displayName: "Publish Repo as Artifact"
-
-# ------------------ Test Stage ------------------
-- stage: Test
-  displayName: "Test Stage"
+# Stage 2: Deploy
+- stage: Deploy
+  displayName: 'Deploy Artifact'
   dependsOn: Build
   jobs:
-  - job: TestJob
-    displayName: "Run Tests"
+  - job: DeployJob
+    displayName: 'Deploy Artifact Job'
     steps:
     - download: current
-      artifact: AmazonTestRepo
+      artifact: drop
+
+    # Example: Copy WAR/JAR to deployment folder
     - powershell: |
-        Write-Host "Running tests on downloaded artifact..."
-        Get-ChildItem
-      displayName: "Inspect Artifact"
+        Write-Host "Deploying artifact..."
+        Copy-Item "$(Pipeline.Workspace)/drop/*.jar" "C:\deploy\Amazon" -Force
+      displayName: 'Copy artifact to deploy folder'
