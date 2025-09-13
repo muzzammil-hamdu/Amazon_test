@@ -1,4 +1,5 @@
-trigger: none
+trigger:
+- master   # Trigger pipeline on commits to master
 
 pool:
   name: batch11    # Your self-hosted Windows agent pool
@@ -9,16 +10,21 @@ stages:
   displayName: "Build Stage"
   jobs:
   - job: BuildJob
-    displayName: "Compile and Build"
+    displayName: "Build Job"
     steps:
-    - checkout: self
+    - checkout: self   # Pulls your GitHub repo
+
+    # Create artifact folder and copy repo files
     - powershell: |
-        Write-Host "Starting build process on Windows..."
-        New-Item -ItemType Directory -Path output -Force
-        "Build artifact from Amazon_test repo" | Out-File output\build.txt
-      displayName: "Run Build Commands"
-    - publish: output
-      artifact: drop
+        Write-Host "Preparing build artifact..."
+        New-Item -ItemType Directory -Path "$(Build.ArtifactStagingDirectory)" -Force
+        Copy-Item -Path * -Destination "$(Build.ArtifactStagingDirectory)" -Recurse -Force
+      displayName: "Copy repo files to staging directory"
+
+    # Publish all repo files as an artifact
+    - publish: $(Build.ArtifactStagingDirectory)
+      artifact: AmazonTestRepo
+      displayName: "Publish Repo as Artifact"
 
 # ------------------ Test Stage ------------------
 - stage: Test
@@ -29,28 +35,8 @@ stages:
     displayName: "Run Tests"
     steps:
     - download: current
-      artifact: drop
+      artifact: AmazonTestRepo
     - powershell: |
-        Write-Host "Running tests..."
-        "All tests passed!" | Out-File test-results.txt
-      displayName: "Run Test Commands"
-    - publish: test-results.txt
-      artifact: test-results
-
-# ------------------ Deploy Stage ------------------
-- stage: Deploy
-  displayName: "Deploy Stage"
-  dependsOn: Test
-  condition: succeeded()
-  jobs:
-  - job: DeployJob
-    displayName: "Deploy Application"
-    steps:
-    - download: current
-      artifact: drop
-    - download: current
-      artifact: test-results
-    - powershell: |
-        Write-Host "Deploying application on Windows agent..."
-        Get-ChildItem -Recurse
-      displayName: "Deployment Script"
+        Write-Host "Running tests on downloaded artifact..."
+        Get-ChildItem
+      displayName: "Inspect Artifact"
