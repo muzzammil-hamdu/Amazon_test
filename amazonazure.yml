@@ -12,33 +12,21 @@ stages:
   - job: MavenBuild
     displayName: 'Maven Package'
     steps:
+    # Run Maven build
     - task: Maven@4
       inputs:
         mavenPomFile: 'Amazon/pom.xml'
         goals: 'clean package'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
+
+    # Verify target folder contents
     - powershell: |
         Write-Host "Listing contents of Maven build output directory..."
-        Get-ChildItem -Path "$(System.DefaultWorkingDirectory)\Amazon\target" -Recurse
+        Get-ChildItem -Path "$(Build.SourcesDirectory)\Amazon\target" -Recurse
       displayName: 'List contents of build output'
+
+    # Publish artifacts
     - task: PublishBuildArtifacts@1
       inputs:
-        PathtoPublish: 'Amazon/target'   # Must match Maven output directory
-        ArtifactName: 'drop'
-        publishLocation: 'Container'
-
-# Stage 2: Deploy
-- stage: Deploy
-  displayName: 'Deploy Artifact'
-  dependsOn: Build
-  jobs:
-  - job: DeployJob
-    displayName: 'Deploy Artifact Job'
-    steps:
-    - download: current
-      artifact: drop
-    - powershell: |
-        Write-Host "Deploying artifact..."
-        Copy-Item "$(Pipeline.Workspace)/drop/*.jar" "C:\deploy\Amazon" -Force
-      displayName: 'Copy artifact to deploy folder'
+        PathtoP
