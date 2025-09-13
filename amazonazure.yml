@@ -1,0 +1,56 @@
+trigger: none
+
+pool:
+  name: batch11    # Your self-hosted Windows agent pool
+
+stages:
+# ------------------ Build Stage ------------------
+- stage: Build
+  displayName: "Build Stage"
+  jobs:
+  - job: BuildJob
+    displayName: "Compile and Build"
+    steps:
+    - checkout: self
+    - powershell: |
+        Write-Host "Starting build process on Windows..."
+        New-Item -ItemType Directory -Path output -Force
+        "Build artifact from Amazon_test repo" | Out-File output\build.txt
+      displayName: "Run Build Commands"
+    - publish: output
+      artifact: drop
+
+# ------------------ Test Stage ------------------
+- stage: Test
+  displayName: "Test Stage"
+  dependsOn: Build
+  jobs:
+  - job: TestJob
+    displayName: "Run Tests"
+    steps:
+    - download: current
+      artifact: drop
+    - powershell: |
+        Write-Host "Running tests..."
+        "All tests passed!" | Out-File test-results.txt
+      displayName: "Run Test Commands"
+    - publish: test-results.txt
+      artifact: test-results
+
+# ------------------ Deploy Stage ------------------
+- stage: Deploy
+  displayName: "Deploy Stage"
+  dependsOn: Test
+  condition: succeeded()
+  jobs:
+  - job: DeployJob
+    displayName: "Deploy Application"
+    steps:
+    - download: current
+      artifact: drop
+    - download: current
+      artifact: test-results
+    - powershell: |
+        Write-Host "Deploying application on Windows agent..."
+        Get-ChildItem -Recurse
+      displayName: "Deployment Script"
