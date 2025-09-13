@@ -12,6 +12,13 @@ stages:
   - job: MavenBuild
     displayName: 'Maven Package'
     steps:
+    # Ensure Java is available (if needed on agent)
+    - task: JavaToolInstaller@0
+      inputs:
+        versionSpec: '11'
+        jdkArchitectureOption: 'x64'
+        jdkSourceOption: 'PreInstalled'
+
     # Run Maven build
     - task: Maven@4
       inputs:
@@ -20,11 +27,11 @@ stages:
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
 
-    # Verify target folder contents
+    # Debug - list files to confirm target directory
     - powershell: |
-        Write-Host "Listing contents of Maven build output directory..."
-        Get-ChildItem -Path "$(Build.SourcesDirectory)\Amazon\target" -Recurse
-      displayName: 'List contents of build output'
+        Write-Host "Listing contents after Maven build..."
+        Get-ChildItem -Path "$(Build.SourcesDirectory)\Amazon" -Recurse
+      displayName: 'Verify Maven build output'
 
     # Publish artifacts
     - task: PublishBuildArtifacts@1
@@ -41,9 +48,11 @@ stages:
   - job: DeployJob
     displayName: 'Deploy Artifact Job'
     steps:
+    # Download artifact from Build stage
     - download: current
       artifact: drop
 
+    # Deploy to C:\deploy\Amazon
     - powershell: |
         Write-Host "Deploying artifact..."
         New-Item -Path "C:\deploy\Amazon" -ItemType Directory -Force
