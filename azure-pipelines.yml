@@ -1,6 +1,6 @@
 # azure-pipelines.yml
 trigger:
-- main   # change if your default branch is master
+- master   # change if your default branch is master
 
 pool:
   name: batch11   # Windows self-hosted agent pool
