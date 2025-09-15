@@ -1,5 +1,5 @@
 trigger:
-- master   # your repo uses master branch
+- master   # run pipeline on commits to master branch
 
 pool:
   name: batch11   # Windows self-hosted agent pool
@@ -23,23 +23,23 @@ stages:
             mvn -version
           displayName: "Check Java & Maven"
 
-        # Step 3: Run Maven build (inside Amazon folder)
+        # Step 3: Run Maven build inside Amazon folder
         - powershell: |
             cd $(Build.SourcesDirectory)\Amazon
             mvn clean package -DskipTests
           displayName: "Maven Build"
 
-        # Step 4: Copy JAR/WAR files from all submodules
+        # Step 4: Copy WAR from Amazon-Web target folder
         - task: CopyFiles@2
-          displayName: "Copy build outputs"
+          displayName: "Copy WAR output"
           inputs:
-            SourceFolder: '$(Build.SourcesDirectory)\Amazon'
-            Contents: '**\target\*.jar;**\target\*.war'
+            SourceFolder: '$(Build.SourcesDirectory)\Amazon\Amazon-Web\target'
+            Contents: '*.war'
             TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-        # Step 5: Publish artifacts
+        # Step 5: Publish artifact
         - task: PublishBuildArtifacts@1
-          displayName: "Publish Artifacts"
+          displayName: "Publish Artifact"
           inputs:
             PathtoPublish: '$(Build.ArtifactStagingDirectory)'
             ArtifactName: 'drop'
@@ -55,22 +55,19 @@ stages:
     - job: DeployJob
       displayName: "Deploy Job"
       steps:
-        # Step 1: Download artifacts from Build stage
+        # Step 1: Download artifact from Build stage
         - download: current
           artifact: drop
 
-        # Step 2: Deploy WAR to Tomcat webapps
+        # Step 2: Deploy WAR to Tomcat
         - powershell: |
-            # Look for WAR inside Amazon-Web\target (preferred web module)
-            $warFile = Get-ChildItem "$(Pipeline.Workspace)\drop" -Recurse -Include *.war | Where-Object { $_.FullName -like "*Amazon-Web*" } | Select-Object -First 1
-            
+            $warFile = Get-ChildItem "$(Pipeline.Workspace)\drop" -Recurse -Include *.war | Select-Object -First 1
             if (-not $warFile) {
-              Write-Error "No WAR file found in Amazon-Web target!"
+              Write-Error "No WAR file found in artifact!"
               exit 1
             }
-            
             Write-Host "Deploying WAR file: $($warFile.FullName)"
-            
-            # Adjust Tomcat installation path if different
+
+            # Adjust Tomcat path if different on your machine
             Copy-Item $warFile.FullName "C:\Tomcat\webapps\" -Force
           displayName: "Deploy WAR to Tomcat"
