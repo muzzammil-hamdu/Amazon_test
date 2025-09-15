@@ -1,0 +1,46 @@
+# azure-pipelines.yml
+trigger:
+- main   # change if your default branch is master
+
+pool:
+  name: batch11   # Windows self-hosted agent pool
+
+stages:
+- stage: Build
+  displayName: "Build and Publish Artifact"
+  jobs:
+    - job: BuildJob
+      displayName: "Build Job"
+      steps:
+        # Step 1: Checkout repo
+        - checkout: self
+
+        # Step 2: Verify Java & Maven installation
+        - powershell: |
+            echo "Checking Java..."
+            java -version
+            echo "Checking Maven..."
+            mvn -version
+          displayName: "Check Java & Maven"
+
+        # Step 3: Run Maven build
+        - powershell: |
+            echo "Building Maven project..."
+            mvn clean package -DskipTests
+          displayName: "Maven Build"
+
+        # Step 4: Copy JAR/WAR files to staging
+        - task: CopyFiles@2
+          displayName: "Copy build outputs"
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)'
+            Contents: '**\target\*.?(jar|war)'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+        # Step 5: Publish artifacts
+        - task: PublishBuildArtifacts@1
+          displayName: "Publish Artifacts"
+          inputs:
+            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+            ArtifactName: 'drop'
+            publishLocation: 'Container'
