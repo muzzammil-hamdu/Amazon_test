@@ -68,6 +68,13 @@ stages:
             }
             Write-Host "Deploying WAR file: $($warFile.FullName)"
 
-            # Adjust Tomcat path if different on your machine
-            Copy-Item $warFile.FullName "C:\Tomcat\webapps\" -Force
+            $tomcatPath = "C:\Users\DELL\Downloads\apache-tomcat-9.0.106-windows-x64\apache-tomcat-9.0.106\webapps"
+            Copy-Item $warFile.FullName $tomcatPath -Force
           displayName: "Deploy WAR to Tomcat"
+
+        # Step 3: Restart Tomcat (if running as a service)
+        - powershell: |
+            Write-Host "Restarting Tomcat service..."
+            Restart-Service -Name "Tomcat9" -Force
+          displayName: "Restart Tomcat Service"
+          continueOnError: true   # won't fail pipeline if service restart fails
