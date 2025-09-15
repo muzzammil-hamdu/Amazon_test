@@ -31,3 +31,14 @@ stages:
         - task: CopyFiles@2
           displayName: "Copy build outputs"
           inputs:
+            SourceFolder: '$(Build.SourcesDirectory)\Amazon'
+            Contents: '**\target\*.?(jar|war)'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+        # Step 5: Publish artifacts
+        - task: PublishBuildArtifacts@1
+          displayName: "Publish Artifacts"
+          inputs:
+            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+            ArtifactName: 'drop'
+            publishLocation: 'Container'
