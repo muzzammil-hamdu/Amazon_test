@@ -1,6 +1,6 @@
 # azure-pipelines.yml
 trigger:
-- master   # change if your default branch is master
+- master   # your repo uses master branch
 
 pool:
   name: batch11   # Windows self-hosted agent pool
@@ -15,17 +15,15 @@ stages:
         # Step 1: Checkout repo
         - checkout: self
 
-        # Step 2: Verify Java & Maven installation
+        # Step 2: Verify Java & Maven
         - powershell: |
-            echo "Checking Java..."
             java -version
-            echo "Checking Maven..."
             mvn -version
           displayName: "Check Java & Maven"
 
-        # Step 3: Run Maven build
+        # Step 3: Run Maven build (inside Amazon folder)
         - powershell: |
-            echo "Building Maven project..."
+            cd $(Build.SourcesDirectory)\Amazon
             mvn clean package -DskipTests
           displayName: "Maven Build"
 
@@ -33,14 +31,3 @@ stages:
         - task: CopyFiles@2
           displayName: "Copy build outputs"
           inputs:
-            SourceFolder: '$(Build.SourcesDirectory)'
-            Contents: '**\target\*.?(jar|war)'
-            TargetFolder: '$(Build.ArtifactStagingDirectory)'
-
-        # Step 5: Publish artifacts
-        - task: PublishBuildArtifacts@1
-          displayName: "Publish Artifacts"
-          inputs:
-            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-            ArtifactName: 'drop'
-            publishLocation: 'Container'
