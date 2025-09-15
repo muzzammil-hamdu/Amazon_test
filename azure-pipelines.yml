@@ -1,13 +1,13 @@
 trigger:
-- master   # build & deploy when changes are pushed to master
+- master   # your repo uses master branch
 
 pool:
-  name: batch11   # your self-hosted Windows agent pool
+  name: batch11   # Windows self-hosted agent pool
 
 stages:
-# =======================
-# CI Stage (Build)
-# =======================
+# =====================
+# Stage 1: Build
+# =====================
 - stage: Build
   displayName: "Build and Publish Artifact"
   jobs:
@@ -23,18 +23,18 @@ stages:
             mvn -version
           displayName: "Check Java & Maven"
 
-        # Step 3: Run Maven build inside Amazon folder
+        # Step 3: Run Maven build (inside Amazon folder)
         - powershell: |
             cd $(Build.SourcesDirectory)\Amazon
             mvn clean package -DskipTests
           displayName: "Maven Build"
 
-        # Step 4: Copy JAR/WAR files to staging
+        # Step 4: Copy JAR/WAR files from all submodules
         - task: CopyFiles@2
           displayName: "Copy build outputs"
           inputs:
-            SourceFolder: '$(Build.SourcesDirectory)\Amazon\target'
-            Contents: '*.jar;*.war'
+            SourceFolder: '$(Build.SourcesDirectory)\Amazon'
+            Contents: '**\target\*.jar;**\target\*.war'
             TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
         # Step 5: Publish artifacts
@@ -45,9 +45,9 @@ stages:
             ArtifactName: 'drop'
             publishLocation: 'Container'
 
-# =======================
-# CD Stage (Deploy)
-# =======================
+# =====================
+# Stage 2: Deploy
+# =====================
 - stage: Deploy
   displayName: "Deploy to Tomcat"
   dependsOn: Build
@@ -55,24 +55,23 @@ stages:
     - job: DeployJob
       displayName: "Deploy Job"
       steps:
-        # Step 1: Download artifact from Build stage
+        # Step 1: Download artifacts
         - task: DownloadBuildArtifacts@0
-          displayName: "Download Artifact"
           inputs:
-            buildType: "current"
-            downloadType: "single"
-            artifactName: "drop"
-            downloadPath: "$(System.ArtifactsDirectory)"
+            buildType: 'current'
+            downloadType: 'single'
+            artifactName: 'drop'
+            downloadPath: '$(System.ArtifactsDirectory)'
 
-        # Step 2: Copy WAR/JAR to Tomcat webapps
+        # Step 2: Deploy WAR to Tomcat webapps
         - powershell: |
-            Write-Host "Copying artifact to Tomcat..."
-            Copy-Item "$(System.ArtifactsDirectory)\drop\*.war" "C:\Tomcat\webapps\" -Force
-          displayName: "Copy to Tomcat webapps"
-
-        # Step 3: Restart Tomcat service
-        - powershell: |
-            Write-Host "Restarting Tomcat service..."
-            net stop Tomcat9
-            net start Tomcat9
-          displayName: "Restart Tomcat"
+            $warFile = Get-ChildItem "$(System.ArtifactsDirectory)\drop" -Recurse -Include *.war | Select-Object -First 1
+            if (-not $warFile) {
+              Write-Error "No WAR file found in artifacts!"
+              exit 1
+            }
+            Write-Host "Deploying WAR file: $($warFile.FullName)"
+            
+            # Adjust Tomcat path if needed
+            Copy-Item $warFile.FullName "C:\Tomcat\webapps\" -Force
+          displayName: "Deploy WAR to Tomcat"
