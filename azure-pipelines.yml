@@ -4,10 +4,10 @@ trigger:
 pool:
   name: batch11   # Windows self-hosted agent pool
 
-stages:
 # =====================
 # Stage 1: Build
 # =====================
+stages:
 - stage: Build
   displayName: "Build and Publish Artifact"
   jobs:
@@ -19,13 +19,16 @@ stages:
 
         # Step 2: Verify Java & Maven
         - powershell: |
+            Write-Host "Checking Java version..."
             java -version
+            Write-Host "Checking Maven version..."
             mvn -version
           displayName: "Check Java & Maven"
 
         # Step 3: Run Maven build inside Amazon folder
         - powershell: |
-            cd $(Build.SourcesDirectory)\Amazon
+            cd "$(Build.SourcesDirectory)\Amazon"
+            Write-Host "Running Maven clean package..."
             mvn clean package -DskipTests
           displayName: "Maven Build"
 
@@ -68,13 +71,39 @@ stages:
             }
             Write-Host "Deploying WAR file: $($warFile.FullName)"
 
+            # Set Tomcat webapps path
             $tomcatPath = "C:\Users\DELL\Downloads\apache-tomcat-9.0.106-windows-x64\apache-tomcat-9.0.106\webapps"
+
+            # Copy WAR
             Copy-Item $warFile.FullName $tomcatPath -Force
           displayName: "Deploy WAR to Tomcat"
 
-        # Step 3: Restart Tomcat (if running as a service)
+        # Step 3: Restart Tomcat safely (service or manual)
         - powershell: |
-            Write-Host "Restarting Tomcat service..."
-            Restart-Service -Name "Tomcat9" -Force
-          displayName: "Restart Tomcat Service"
-          continueOnError: true   # won't fail pipeline if service restart fails
+            $serviceName = "Tomcat9"  # Replace with actual service Name
+            $tomcatBinPath = "C:\Users\DELL\Downloads\apache-tomcat-9.0.106-windows-x64\apache-tomcat-9.0.106\bin"
+
+            # Try to restart as Windows service
+            $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            if ($service) {
+                Write-Host "Found Tomcat service '$serviceName' with status: $($service.Status)"
+                if ($service.Status -eq 'Running') {
+                    Write-Host "Stopping service..."
+                    Stop-Service -Name $serviceName -Force -ErrorAction Continue
+                }
+                Write-Host "Starting service..."
+                Start-Service -Name $serviceName -ErrorAction Stop
+                Write-Host "Tomcat service restarted successfully."
+            }
+            else {
+                # If not running as a service, restart manually using catalina.bat
+                Write-Warning "Tomcat service '$serviceName' not found. Attempting manual restart..."
+                Write-Host "Stopping Tomcat manually..."
+                & "$tomcatBinPath\catalina.bat" stop
+                Start-Sleep -Seconds 5
+                Write-Host "Starting Tomcat manually..."
+                & "$tomcatBinPath\catalina.bat" start
+                Write-Host "Tomcat restarted manually."
+            }
+          displayName: "Restart Tomcat Safely"
+          continueOnError: true
