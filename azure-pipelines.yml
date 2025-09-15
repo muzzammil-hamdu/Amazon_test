@@ -55,23 +55,22 @@ stages:
     - job: DeployJob
       displayName: "Deploy Job"
       steps:
-        # Step 1: Download artifacts
-        - task: DownloadBuildArtifacts@0
-          inputs:
-            buildType: 'current'
-            downloadType: 'single'
-            artifactName: 'drop'
-            downloadPath: '$(System.ArtifactsDirectory)'
+        # Step 1: Download artifacts from Build stage
+        - download: current
+          artifact: drop
 
         # Step 2: Deploy WAR to Tomcat webapps
         - powershell: |
-            $warFile = Get-ChildItem "$(System.ArtifactsDirectory)\drop" -Recurse -Include *.war | Select-Object -First 1
+            # Look for WAR inside Amazon-Web\target (preferred web module)
+            $warFile = Get-ChildItem "$(Pipeline.Workspace)\drop" -Recurse -Include *.war | Where-Object { $_.FullName -like "*Amazon-Web*" } | Select-Object -First 1
+            
             if (-not $warFile) {
-              Write-Error "No WAR file found in artifacts!"
+              Write-Error "No WAR file found in Amazon-Web target!"
               exit 1
             }
+            
             Write-Host "Deploying WAR file: $($warFile.FullName)"
             
-            # Adjust Tomcat path if needed
+            # Adjust Tomcat installation path if different
             Copy-Item $warFile.FullName "C:\Tomcat\webapps\" -Force
           displayName: "Deploy WAR to Tomcat"
