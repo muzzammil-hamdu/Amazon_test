@@ -1,44 +1,64 @@
-# azure-pipelines.yml
 trigger:
-- master   # your repo uses master branch
+- main   # or master, change as per your default branch
 
 pool:
-  name: batch11   # Windows self-hosted agent pool
+  name: batch11   # your self-hosted Windows agent pool
 
 stages:
+# =============================
+# Stage 1: Build & Publish
+# =============================
 - stage: Build
-  displayName: "Build and Publish Artifact"
+  displayName: "Build Stage"
   jobs:
     - job: BuildJob
-      displayName: "Build Job"
+      displayName: "Build Java Project"
       steps:
-        # Step 1: Checkout repo
         - checkout: self
+          fetchDepth: 1
 
-        # Step 2: Verify Java & Maven
-        - powershell: |
-            java -version
-            mvn -version
-          displayName: "Check Java & Maven"
-
-        # Step 3: Run Maven build (inside Amazon folder)
-        - powershell: |
-            cd $(Build.SourcesDirectory)\Amazon
-            mvn clean package -DskipTests
-          displayName: "Maven Build"
-
-        # Step 4: Copy JAR/WAR files to staging
-        - task: CopyFiles@2
-          displayName: "Copy build outputs"
+        - task: Maven@4
+          displayName: "Maven Package"
           inputs:
-            SourceFolder: '$(Build.SourcesDirectory)\Amazon'
-            Contents: '**\target\*.?(jar|war)'
-            TargetFolder: '$(Build.ArtifactStagingDirectory)'
+            mavenPomFile: "pom.xml"
+            goals: "clean package"
+            javaHomeOption: "JDKVersion"
+            jdkVersionOption: "1.11"   # adjust if you use 17
+            publishJUnitResults: true
+            testResultsFiles: "**/surefire-reports/TEST-*.xml"
 
-        # Step 5: Publish artifacts
         - task: PublishBuildArtifacts@1
-          displayName: "Publish Artifacts"
+          displayName: "Publish Build Artifact"
           inputs:
-            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-            ArtifactName: 'drop'
-            publishLocation: 'Container'
+            PathtoPublish: "$(System.DefaultWorkingDirectory)/Amazon/target"
+            ArtifactName: "drop"
+            publishLocation: "Container"
+
+# =============================
+# Stage 2: Deploy to Tomcat
+# =============================
+- stage: Deploy
+  displayName: "Deploy Stage"
+  dependsOn: Build
+  jobs:
+    - job: DeployJob
+      displayName: "Deploy WAR to Tomcat"
+      steps:
+        - task: DownloadBuildArtifacts@0
+          displayName: "Download Artifact"
+          inputs:
+            buildType: "current"
+            downloadType: "single"
+            artifactName: "drop"
+            downloadPath: "$(System.ArtifactsDirectory)"
+
+        - powershell: |
+            Write-Host "Copying WAR to Tomcat webapps..."
+            Copy-Item "$(System.ArtifactsDirectory)\drop\*.war" "C:\Tomcat\webapps\" -Force
+          displayName: "Copy WAR"
+
+        - powershell: |
+            Write-Host "Restarting Tomcat service..."
+            net stop Tomcat9
+            net start Tomcat9
+          displayName: "Restart Tomcat"
