@@ -1,45 +1,33 @@
 trigger:
-- master   # run pipeline on commits to master branch
+- master
 
 pool:
   name: batch11
   demands:
-    - agent.name -equals lin1   # force pipeline to run on Linux agent lin1
+    - agent.name -equals lin1
 
 stages:
-# =====================
-# Stage 1: Build
-# =====================
 - stage: Build
   displayName: "Build and Publish Artifact"
   jobs:
     - job: BuildJob
       displayName: "Build Job"
       steps:
-        # Step 1: Checkout repo
         - checkout: self
-
-        # Step 2: Verify Java & Maven
         - script: |
             java -version
             mvn -version
           displayName: "Check Java & Maven"
-
-        # Step 3: Run Maven build inside Amazon folder
         - script: |
             cd $(Build.SourcesDirectory)/Amazon
             mvn clean package -DskipTests
           displayName: "Maven Build"
-
-        # Step 4: Copy WAR from Amazon-Web target folder
         - task: CopyFiles@2
           displayName: "Copy WAR output"
           inputs:
             SourceFolder: '$(Build.SourcesDirectory)/Amazon/Amazon-Web/target'
             Contents: '*.war'
             TargetFolder: '$(Build.ArtifactStagingDirectory)'
-
-        # Step 5: Publish artifact
         - task: PublishBuildArtifacts@1
           displayName: "Publish Artifact"
           inputs:
@@ -47,9 +35,6 @@ stages:
             ArtifactName: 'drop'
             publishLocation: 'Container'
 
-# =====================
-# Stage 2: Deploy
-# =====================
 - stage: Deploy
   displayName: "Deploy to Tomcat"
   dependsOn: Build
@@ -57,11 +42,8 @@ stages:
     - job: DeployJob
       displayName: "Deploy Job"
       steps:
-        # Step 1: Download artifact from Build stage
         - download: current
           artifact: drop
-
-        # Step 2: Deploy WAR to Tomcat
         - script: |
             warFile=$(find "$(Pipeline.Workspace)/drop" -name "*.war" | head -n 1)
             if [ -z "$warFile" ]; then
@@ -69,15 +51,5 @@ stages:
               exit 1
             fi
             echo "Deploying WAR file: $warFile"
-
             tomcatPath="/home/lin1/apache-tomcat-9.0.106/webapps"
-            cp -f "$warFile" "$tomcatPath/"
-          displayName: "Deploy WAR to Tomcat"
-
-        # Step 3: Restart Tomcat (Linux scripts)
-        - script: |
-            echo "Restarting Tomcat..."
-            /home/lin1/apache-tomcat-9.0.106/bin/shutdown.sh || true
-            sleep 5
-            /home/lin1/apache-tomcat-9.0.106/bin/startup.sh
-          displayName: "Restart Tomcat"
+            cp -f "$warFile" "$tomcatPath
