@@ -15,9 +15,12 @@ stages:
       steps:
         - checkout: self
         - script: |
+            sudo apt-get update
+            sudo apt-get install -y openjdk-11-jdk
+            sudo apt-get install -y maven
             java -version
             mvn -version
-          displayName: "Check Java & Maven"
+          displayName: "Install Java & Maven and Check Versions"
         - script: |
             cd $(Build.SourcesDirectory)/Amazon
             mvn clean package -DskipTests
@@ -52,4 +55,11 @@ stages:
             fi
             echo "Deploying WAR file: $warFile"
             tomcatPath="/home/lin1/apache-tomcat-9.0.106/webapps"
-            cp -f "$warFile" "$tomcatPath
+            cp -f "$warFile" "$tomcatPath/"
+          displayName: "Deploy WAR to Tomcat"
+        - script: |
+            echo "Restarting Tomcat..."
+            /home/lin1/apache-tomcat-9.0.106/bin/shutdown.sh || true
+            sleep 5
+            /home/lin1/apache-tomcat-9.0.106/bin/startup.sh
+          displayName: "Restart Tomcat"
