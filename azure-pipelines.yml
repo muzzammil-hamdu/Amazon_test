@@ -24,10 +24,10 @@ stages:
 
     - script: |
         sudo apt-get update
-        sudo apt-get install -y openjdk-11-jdk maven
+        sudo apt-get install -y openjdk-11-jdk maven curl
         java -version
         mvn -version
-      displayName: "Install Java & Maven"
+      displayName: "Install Java, Maven & Curl"
 
     - script: |
         cd $(Build.SourcesDirectory)/Amazon
@@ -61,24 +61,38 @@ stages:
     - download: current
       artifact: drop
 
+    # Install Tomcat
     - script: |
+        echo "Installing Tomcat..."
         if [ ! -d "$(INSTALL_DIR)" ]; then
-          wget https://downloads.apache.org/tomcat/tomcat-9/v$(TOMCAT_VERSION)/bin/apache-tomcat-$(TOMCAT_VERSION).tar.gz
           mkdir -p /home/lin1
-          tar -xzf apache-tomcat-$(TOMCAT_VERSION).tar.gz -C /home/lin1/
-          chown -R $(whoami):$(whoami) $(INSTALL_DIR)
-          chmod +x $(INSTALL_DIR)/bin/*.sh
+          wget -O tomcat.tar.gz https://downloads.apache.org/tomcat/tomcat-9/v$(TOMCAT_VERSION)/bin/apache-tomcat-$(TOMCAT_VERSION).tar.gz || { echo "Download failed!"; exit 1; }
+
+          echo "Downloaded Tomcat archive:"
+          ls -lh tomcat.tar.gz || true
+
+          echo "Extracting..."
+          tar -xzf tomcat.tar.gz -C /home/lin1/ || { echo "Extraction failed!"; exit 1; }
+
+          echo "Checking extracted contents..."
+          ls -l /home/lin1/ || true
+
+          chown -R $(whoami):$(whoami) $(INSTALL_DIR) || true
+          chmod +x $(INSTALL_DIR)/bin/*.sh || true
+
           echo "Installed Tomcat to $(INSTALL_DIR)"
         else
           echo "Tomcat already installed at $(INSTALL_DIR)"
         fi
       displayName: "Install Apache Tomcat"
 
+    # Verify Tomcat bin folder
     - script: |
-        echo "Checking Tomcat installation..."
+        echo "Verifying Tomcat bin directory..."
         ls -l $(INSTALL_DIR)/bin
       displayName: "Verify Tomcat Files"
 
+    # Deploy WAR
     - script: |
         warFile=$(find "$(Pipeline.Workspace)/drop" -name "*.war" | head -n 1)
         if [ -z "$warFile" ]; then
@@ -92,6 +106,7 @@ stages:
         cp -f "$warFile" "$tomcatWebApps/"
       displayName: "Deploy WAR to Tomcat"
 
+    # Restart Tomcat
     - script: |
         echo "Restarting Tomcat..."
         $(INSTALL_DIR)/bin/shutdown.sh || true
@@ -99,6 +114,7 @@ stages:
         $(INSTALL_DIR)/bin/startup.sh
       displayName: "Restart Tomcat"
 
+    # Health check
     - script: |
         echo "Checking Tomcat health..."
         sleep 10
