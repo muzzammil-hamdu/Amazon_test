@@ -64,8 +64,8 @@ stages:
     - script: |
         if [ ! -d "$(INSTALL_DIR)" ]; then
           wget https://downloads.apache.org/tomcat/tomcat-9/v$(TOMCAT_VERSION)/bin/apache-tomcat-$(TOMCAT_VERSION).tar.gz
+          mkdir -p /home/lin1
           tar -xzf apache-tomcat-$(TOMCAT_VERSION).tar.gz -C /home/lin1/
-          mv /home/lin1/apache-tomcat-$(TOMCAT_VERSION) $(INSTALL_DIR)
           chown -R $(whoami):$(whoami) $(INSTALL_DIR)
           chmod +x $(INSTALL_DIR)/bin/*.sh
           echo "Installed Tomcat to $(INSTALL_DIR)"
@@ -73,6 +73,11 @@ stages:
           echo "Tomcat already installed at $(INSTALL_DIR)"
         fi
       displayName: "Install Apache Tomcat"
+
+    - script: |
+        echo "Checking Tomcat installation..."
+        ls -l $(INSTALL_DIR)/bin
+      displayName: "Verify Tomcat Files"
 
     - script: |
         warFile=$(find "$(Pipeline.Workspace)/drop" -name "*.war" | head -n 1)
@@ -93,3 +98,9 @@ stages:
         sleep 5
         $(INSTALL_DIR)/bin/startup.sh
       displayName: "Restart Tomcat"
+
+    - script: |
+        echo "Checking Tomcat health..."
+        sleep 10
+        curl -I http://localhost:8080/ || true
+      displayName: "Health Check"
