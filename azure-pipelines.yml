@@ -8,7 +8,7 @@ pool:
 
 variables:
   TOMCAT_VERSION: "9.0.106"
-  INSTALL_DIR: "/home/lin1/apache-tomcat-$(TOMCAT_VERSION)"
+  INSTALL_DIR: "/home/mujju/lin1/apache-tomcat-$(TOMCAT_VERSION)"
 
 stages:
 # =====================
@@ -61,30 +61,26 @@ stages:
     - download: current
       artifact: drop
 
-    # Install Tomcat
+    # Install Tomcat only if missing
     - script: |
-        echo "Installing Tomcat..."
+        echo "Checking Tomcat installation at $(INSTALL_DIR)..."
         if [ ! -d "$(INSTALL_DIR)" ]; then
-          mkdir -p /home/lin1
-          wget -O tomcat.tar.gz https://downloads.apache.org/tomcat/tomcat-9/v$(TOMCAT_VERSION)/bin/apache-tomcat-$(TOMCAT_VERSION).tar.gz || { echo "Download failed!"; exit 1; }
-
-          echo "Downloaded Tomcat archive:"
-          ls -lh tomcat.tar.gz || true
+          echo "Tomcat not found. Installing..."
+          mkdir -p /home/mujju/lin1
+          wget -O tomcat.tar.gz https://archive.apache.org/dist/tomcat/tomcat-9/v$(TOMCAT_VERSION)/bin/apache-tomcat-$(TOMCAT_VERSION).tar.gz || { echo "Download failed!"; exit 1; }
 
           echo "Extracting..."
-          tar -xzf tomcat.tar.gz -C /home/lin1/ || { echo "Extraction failed!"; exit 1; }
+          tar -xzf tomcat.tar.gz -C /home/mujju/lin1/ || { echo "Extraction failed!"; exit 1; }
 
           echo "Checking extracted contents..."
-          ls -l /home/lin1/ || true
+          ls -l /home/mujju/lin1/
 
-          chown -R $(whoami):$(whoami) $(INSTALL_DIR) || true
           chmod +x $(INSTALL_DIR)/bin/*.sh || true
-
-          echo "Installed Tomcat to $(INSTALL_DIR)"
+          echo "Installed Tomcat at $(INSTALL_DIR)"
         else
-          echo "Tomcat already installed at $(INSTALL_DIR)"
+          echo "Tomcat already present at $(INSTALL_DIR)"
         fi
-      displayName: "Install Apache Tomcat"
+      displayName: "Ensure Tomcat Installed"
 
     # Verify Tomcat bin folder
     - script: |
@@ -114,7 +110,7 @@ stages:
         $(INSTALL_DIR)/bin/startup.sh
       displayName: "Restart Tomcat"
 
-    # Health check
+    # Health check (Tomcat root)
     - script: |
         echo "Checking Tomcat health..."
         sleep 10
