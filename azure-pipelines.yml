@@ -50,4 +50,31 @@ stages:
   jobs:
     - job: DeployJob
       displayName: "Deploy Job"
-      steps
+      steps:
+        - download: current
+          artifact: drop
+
+        - script: |
+            warFile=$(find "$(Pipeline.Workspace)/drop" -name "*.war" | head -n 1)
+            if [ -z "$warFile" ]; then
+              echo "ERROR: No WAR file found in artifact!"
+              exit 1
+            fi
+            echo "WAR file found at $warFile"
+
+            tomcatPath="/home/lin1/apache-tomcat-9.0.106/webapps"
+            if [ ! -d "$tomcatPath" ]; then
+              sudo mkdir -p "$tomcatPath"
+              sudo chown -R $(whoami):$(whoami) "$tomcatPath"
+              sudo chmod -R 755 "$tomcatPath"
+            fi
+
+            cp -f "$warFile" "$tomcatPath/"
+          displayName: "Deploy WAR to Tomcat"
+
+        - script: |
+            echo "Restarting Tomcat..."
+            /home/lin1/apache-tomcat-9.0.106/bin/shutdown.sh || true
+            sleep 5
+            /home/lin1/apache-tomcat-9.0.106/bin/startup.sh
+          displayName: "Restart Tomcat"
