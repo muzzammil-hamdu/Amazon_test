@@ -14,22 +14,29 @@ stages:
       displayName: "Build Job"
       steps:
         - checkout: self
+
+        # Install Java and Maven on agent
         - script: |
             sudo apt-get update
             sudo apt-get install -y openjdk-11-jdk maven
             java -version
             mvn -version
           displayName: "Install Java & Maven and Check Versions"
+
+        # Build entire multi-module Maven project and install locally
         - script: |
-            cd $(Build.SourcesDirectory)/Amazon/Amazon-Web
-            mvn clean package -DskipTests
-          displayName: "Maven Build"
+            cd $(Build.SourcesDirectory)/Amazon
+            mvn clean install -DskipTests
+          displayName: "Maven Multi-module Build"
+
+        # Copy WAR artifact for Deploy stage
         - task: CopyFiles@2
           displayName: "Copy WAR output"
           inputs:
             SourceFolder: '$(Build.SourcesDirectory)/Amazon/Amazon-Web/target'
             Contents: '*.war'
             TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
         - task: PublishBuildArtifacts@1
           displayName: "Publish Artifact"
           inputs:
@@ -43,31 +50,4 @@ stages:
   jobs:
     - job: DeployJob
       displayName: "Deploy Job"
-      steps:
-        - download: current
-          artifact: drop
-        - script: |
-            warFile=$(find "$(Pipeline.Workspace)/drop" -name "*.war" | head -n 1)
-            if [ -z "$warFile" ]; then
-              echo "ERROR: No WAR file found in artifact!"
-              exit 1
-            fi
-            echo "WAR file found at $warFile"
-
-            tomcatPath="/home/lin1/apache-tomcat-9.0.106/webapps"
-
-            if [ ! -d "$tomcatPath" ]; then
-              sudo mkdir -p "$tomcatPath"
-              sudo chown -R $(whoami):$(whoami) "$tomcatPath"
-              sudo chmod -R 755 "$tomcatPath"
-            fi
-
-            cp -f "$warFile" "$tomcatPath/"
-          displayName: "Deploy WAR to Tomcat"
-
-        - script: |
-            echo "Restarting Tomcat..."
-            /home/lin1/apache-tomcat-9.0.106/bin/shutdown.sh || true
-            sleep 5
-            /home/lin1/apache-tomcat-9.0.106/bin/startup.sh
-          displayName: "Restart Tomcat"
+      steps
