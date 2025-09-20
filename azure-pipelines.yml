@@ -1,10 +1,19 @@
 trigger:
 - master
+
 pool:
   name: batch11
   demands:
     - agent.name -equals lin1
+
+variables:
+  TOMCAT_VERSION: "9.0.106"
+  INSTALL_DIR: "/home/lin1/apache-tomcat-$(TOMCAT_VERSION)"
+
 stages:
+# =====================
+# Stage 1: Build
+# =====================
 - stage: Build
   displayName: "Build and Publish Artifact"
   jobs:
@@ -12,22 +21,26 @@ stages:
     displayName: "Build Job"
     steps:
     - checkout: self
+
     - script: |
         sudo apt-get update
         sudo apt-get install -y openjdk-11-jdk maven
         java -version
         mvn -version
       displayName: "Install Java & Maven"
+
     - script: |
         cd $(Build.SourcesDirectory)/Amazon
         mvn clean install -DskipTests
       displayName: "Maven Multi-module Build"
+
     - task: CopyFiles@2
       inputs:
         SourceFolder: '$(Build.SourcesDirectory)/Amazon/Amazon-Web/target'
         Contents: '*.war'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
       displayName: "Copy WAR output"
+
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
@@ -35,6 +48,9 @@ stages:
         publishLocation: 'Container'
       displayName: "Publish Artifact"
 
+# =====================
+# Stage 2: Deploy
+# =====================
 - stage: Deploy
   displayName: "Deploy to Tomcat"
   dependsOn: Build
@@ -44,34 +60,36 @@ stages:
     steps:
     - download: current
       artifact: drop
+
     - script: |
-        TOMCAT_VERSION=9.0.106
-        INSTALL_DIR=/home/lin1/apache-tomcat-$TOMCAT_VERSION
-        if [ ! -d "$INSTALL_DIR" ]; then
-          wget https://downloads.apache.org/tomcat/tomcat-9/v$TOMCAT_VERSION/bin/apache-tomcat-$TOMCAT_VERSION.tar.gz
-          tar -xzf apache-tomcat-$TOMCAT_VERSION.tar.gz -C /home/lin1/
-          mv /home/lin1/apache-tomcat-$TOMCAT_VERSION $INSTALL_DIR
-          chown -R $(whoami):$(whoami) $INSTALL_DIR
-          chmod +x $INSTALL_DIR/bin/*.sh
-          echo "Installed Tomcat to $INSTALL_DIR"
+        if [ ! -d "$(INSTALL_DIR)" ]; then
+          wget https://downloads.apache.org/tomcat/tomcat-9/v$(TOMCAT_VERSION)/bin/apache-tomcat-$(TOMCAT_VERSION).tar.gz
+          tar -xzf apache-tomcat-$(TOMCAT_VERSION).tar.gz -C /home/lin1/
+          mv /home/lin1/apache-tomcat-$(TOMCAT_VERSION) $(INSTALL_DIR)
+          chown -R $(whoami):$(whoami) $(INSTALL_DIR)
+          chmod +x $(INSTALL_DIR)/bin/*.sh
+          echo "Installed Tomcat to $(INSTALL_DIR)"
         else
-          echo "Tomcat already installed at $INSTALL_DIR"
+          echo "Tomcat already installed at $(INSTALL_DIR)"
         fi
       displayName: "Install Apache Tomcat"
+
     - script: |
         warFile=$(find "$(Pipeline.Workspace)/drop" -name "*.war" | head -n 1)
         if [ -z "$warFile" ]; then
           echo "ERROR: No WAR file found in artifact!"
           exit 1
         fi
+
         echo "Deploying WAR file: $warFile"
-        tomcatWebApps="$INSTALL_DIR/webapps"
+        tomcatWebApps="$(INSTALL_DIR)/webapps"
         mkdir -p "$tomcatWebApps"
         cp -f "$warFile" "$tomcatWebApps/"
       displayName: "Deploy WAR to Tomcat"
+
     - script: |
         echo "Restarting Tomcat..."
-        $INSTALL_DIR/bin/shutdown.sh || true
+        $(INSTALL_DIR)/bin/shutdown.sh || true
         sleep 5
-        $INSTALL_DIR/bin/startup.sh
+        $(INSTALL_DIR)/bin/startup.sh
       displayName: "Restart Tomcat"
