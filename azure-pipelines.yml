@@ -16,13 +16,12 @@ stages:
         - checkout: self
         - script: |
             sudo apt-get update
-            sudo apt-get install -y openjdk-11-jdk
-            sudo apt-get install -y maven
+            sudo apt-get install -y openjdk-11-jdk maven
             java -version
             mvn -version
           displayName: "Install Java & Maven and Check Versions"
         - script: |
-            cd $(Build.SourcesDirectory)/Amazon
+            cd $(Build.SourcesDirectory)/Amazon/Amazon-Web
             mvn clean package -DskipTests
           displayName: "Maven Build"
         - task: CopyFiles@2
@@ -53,10 +52,19 @@ stages:
               echo "ERROR: No WAR file found in artifact!"
               exit 1
             fi
-            echo "Deploying WAR file: $warFile"
+            echo "WAR file found at $warFile"
+
             tomcatPath="/home/lin1/apache-tomcat-9.0.106/webapps"
+
+            if [ ! -d "$tomcatPath" ]; then
+              sudo mkdir -p "$tomcatPath"
+              sudo chown -R $(whoami):$(whoami) "$tomcatPath"
+              sudo chmod -R 755 "$tomcatPath"
+            fi
+
             cp -f "$warFile" "$tomcatPath/"
           displayName: "Deploy WAR to Tomcat"
+
         - script: |
             echo "Restarting Tomcat..."
             /home/lin1/apache-tomcat-9.0.106/bin/shutdown.sh || true
